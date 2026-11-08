@@ -1,0 +1,10 @@
+{
+    "project_name": "project_name",
+    "default_image_directory": "/home/user/images",
+    "index_fields": [
+        {
+            "name": "index_field_name",
+            "type": "index_field_type"
+        }
+    ]
+}
