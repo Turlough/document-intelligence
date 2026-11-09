@@ -1,5 +1,15 @@
 # Document Intelligence
+
 PyQt6 app for evaluating Azure DI vs custom/trained models for form reading.
+
+## Run locally
+
+```bash
+uv sync
+uv run python main.py
+```
+
+Copy `env.example` to `.env`. Set `FORM_CONFIG_DIRECTORY` (e.g. `samples` — each project is a subdirectory with `config.json`). Configure RunPod per `RUNPOD.md`.
 
 The app supports multiple form types, aka "Projects". These have differing form layouts and different indexing requirements.
 
@@ -12,8 +22,10 @@ Files are of type PDF or TIFF, are often multipage, and contain scanned images.
 ### Left panel
 Table containing list of filenames followed by *index_fields*- values returned from the endpoint.
 
-### Right panel
-Image viewer for the current
+### Right panel- top
+Image viewer for the current file, with zoom & page controls.
+### Right panel- bottom
+Under that, a vertical table showing key-value pairs for the index fields.
 
 ## Menus
 

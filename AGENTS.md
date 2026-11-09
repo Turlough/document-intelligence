@@ -86,4 +86,4 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-Index to child AGENTS.md files.
+- `src/document_intelligence/AGENTS.md` — package layout, Stage 1 RunPod upload flow

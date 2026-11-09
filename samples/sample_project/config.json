@@ -1,0 +1,18 @@
+{
+    "project_name": "sample_project",
+    "default_image_directory": ".",
+    "index_fields": [
+        {
+            "name": "DDAI ID",
+            "type": "str"
+        },
+        {
+            "name": "APPLICATION No",
+            "type": "str"
+        },
+        {
+            "name": "DATE",
+            "type": "str"
+        }
+    ]
+}

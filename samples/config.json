@@ -3,8 +3,16 @@
     "default_image_directory": "/home/user/images",
     "index_fields": [
         {
-            "name": "index_field_name",
-            "type": "index_field_type"
+            "name": "DDAI ID",
+            "type": "str"
+        },
+        {
+            "name": "APPLICATION No",
+            "type": "str"
+        },
+        {
+            "name": "DATE",
+            "type": "str"
         }
     ]
 }
