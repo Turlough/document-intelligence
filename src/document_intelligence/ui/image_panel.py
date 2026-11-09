@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from PIL import Image
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPainter, QPixmap
+from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QGraphicsPixmapItem,
+    QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -17,12 +18,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ..services.bbox import qwen_bbox_to_rectf
 from ..services.image_loader import (
     document_page_count,
     load_document_page,
     pil_to_qimage,
     placeholder_image,
 )
+
+_LABEL_PEN = QPen(QColor(0, 170, 0), 2, Qt.PenStyle.DashLine)
+_VALUE_PEN = QPen(QColor(0, 170, 0), 2, Qt.PenStyle.SolidLine)
+_FIELD_FIT_MARGIN = 0.12
 
 
 class ImagePanel(QWidget):
@@ -32,6 +38,9 @@ class ImagePanel(QWidget):
         super().__init__(parent)
         self._page_count = 1
         self._page_index = 0
+        self._image_width = 1
+        self._image_height = 1
+        self._highlight_items: list[QGraphicsRectItem] = []
 
         self._scene = QGraphicsScene(self)
         self._view = QGraphicsView(self._scene)
@@ -82,6 +91,57 @@ class ImagePanel(QWidget):
         self._page_progress.setVisible(False)
         self._page_progress.setValue(0)
 
+    def clear_highlights(self) -> None:
+        for item in self._highlight_items:
+            self._scene.removeItem(item)
+        self._highlight_items.clear()
+
+    def highlight_bboxes(
+        self,
+        label_bbox: list[int] | None,
+        value_bbox: list[int] | None,
+    ) -> None:
+        self.clear_highlights()
+        fit_rects: list[QRectF] = []
+        if label_bbox:
+            fit_rects.append(
+                self._add_highlight_rect(label_bbox, _LABEL_PEN)
+            )
+        if value_bbox:
+            fit_rects.append(
+                self._add_highlight_rect(value_bbox, _VALUE_PEN)
+            )
+        if fit_rects:
+            self._fit_rects_in_view(fit_rects)
+
+    def _add_highlight_rect(self, bbox: list[int], pen: QPen) -> QRectF:
+        rect = qwen_bbox_to_rectf(bbox, self._image_width, self._image_height)
+        item = QGraphicsRectItem(rect)
+        item.setPen(pen)
+        item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        item.setZValue(self._pixmap_item.zValue() + 1)
+        self._scene.addItem(item)
+        self._highlight_items.append(item)
+        return rect
+
+    def _fit_rects_in_view(self, rects: list[QRectF]) -> None:
+        if not rects:
+            return
+        region = QRectF(rects[0])
+        for rect in rects[1:]:
+            region = region.united(rect)
+        if region.width() < 1.0 or region.height() < 1.0:
+            return
+        pad_x = max(region.width() * _FIELD_FIT_MARGIN, 8.0)
+        pad_y = max(region.height() * _FIELD_FIT_MARGIN, 8.0)
+        padded = region.adjusted(-pad_x, -pad_y, pad_x, pad_y)
+        bounds = self._pixmap_item.boundingRect()
+        padded = padded.intersected(bounds)
+        if padded.width() < 1.0 or padded.height() < 1.0:
+            padded = region.intersected(bounds)
+        self._view.resetTransform()
+        self._view.fitInView(padded, Qt.AspectRatioMode.KeepAspectRatio)
+
     def show_path(self, path: Path | None) -> None:
         if path is None:
             self._set_image(placeholder_image("No file selected"))
@@ -105,6 +165,8 @@ class ImagePanel(QWidget):
         self._fit_view()
 
     def _set_image(self, image: Image.Image) -> None:
+        self.clear_highlights()
+        self._image_width, self._image_height = image.size
         qimage = pil_to_qimage(image)
         pixmap = QPixmap.fromImage(qimage)
         self._pixmap_item.setPixmap(pixmap)

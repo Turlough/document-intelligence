@@ -35,6 +35,6 @@ Under that, a vertical table showing key-value pairs for the index fields.
 
 On re-opening the app, the previous configuration and file list are restored from the user's APPDATA.
 
-*File -> Upload*: One vision call per page; live preview and progress bars; index columns use merged fields; `{basename}.json` beside each source with `{"pages": [...]}`; extracted fields table lists values by page.
+*File -> Upload*: One vision call per page with label/value bounding boxes (Qwen 0–999 coords); live preview and progress bars; `{basename}.json` with `{"pages": [{"fields": [...]}]}`. Click a field in the left index columns or right Page/Field/Value table to draw label (dashed green) and value (solid green) rectangles on the image.
 
 
