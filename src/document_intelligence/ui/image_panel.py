@@ -16,23 +16,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..services.image_loader import load_first_page_image, pil_to_qimage, placeholder_image
-
-
-def _page_count(path: Path) -> int:
-    suffix = path.suffix.lower()
-    if suffix == ".pdf":
-        import fitz
-
-        doc = fitz.open(path)
-        try:
-            return max(1, doc.page_count)
-        finally:
-            doc.close()
-    if suffix in {".tif", ".tiff"}:
-        with Image.open(path) as probe:
-            return max(1, getattr(probe, "n_frames", 1))
-    return 1
+from ..services.image_loader import (
+    document_page_count,
+    load_first_page_image,
+    pil_to_qimage,
+    placeholder_image,
+)
 
 
 class ImagePanel(QWidget):
@@ -84,7 +73,7 @@ class ImagePanel(QWidget):
         if image is None:
             image = placeholder_image(f"Not found\n{path.name}")
         self._set_image(image)
-        self._page_count = _page_count(path)
+        self._page_count = document_page_count(path)
         self._page_index = 0
         self._page_label.setText(f"Page {self._page_index + 1} of {self._page_count}")
         self._fit_view()

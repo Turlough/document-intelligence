@@ -7,8 +7,20 @@ from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from ..models.project_config import IndexField
-from ..services.image_loader import image_to_png_bytes, load_first_page_image, placeholder_image
-from ..services.response_parse import DEFAULT_EXTRACTION_PROMPT, parse_model_object, value_for_field
+from ..services.image_loader import (
+    document_page_count,
+    image_to_png_bytes,
+    load_document_page,
+    placeholder_image,
+)
+from ..services.response_parse import (
+    DEFAULT_EXTRACTION_PROMPT,
+    extraction_prompt_for_page,
+    merge_extracted_fields,
+    parse_model_object,
+    value_for_field,
+    write_extraction_json,
+)
 from ..services.runpod_client import RunPodClient
 
 logger = logging.getLogger(__name__)
@@ -19,6 +31,7 @@ class FileUploadResult:
     path: Path
     raw_text: str
     fields: dict[str, str]
+    json_path: Path | None = None
     error: str | None = None
 
 
@@ -55,25 +68,53 @@ class UploadWorker(QThread):
                 break
             self.file_started.emit(row)
             try:
-                image = load_first_page_image(path)
-                if image is None:
-                    image = placeholder_image(path.name)
-                png = image_to_png_bytes(image)
-                raw = self._client.read_page(
-                    self._prompt,
-                    png,
-                    should_cancel=self._should_cancel,
-                )
-                parsed = parse_model_object(raw)
-                fields = dict(parsed) if parsed is not None else {"(raw response)": raw}
+                page_count = document_page_count(path)
+                page_maps: list[dict[str, str]] = []
+                raw_parts: list[str] = []
+                for page_index in range(page_count):
+                    if self._should_cancel():
+                        raise InterruptedError("Cancelled")
+                    image = load_document_page(path, page_index)
+                    if image is None:
+                        image = placeholder_image(
+                            f"{path.name} page {page_index + 1}/{page_count}"
+                        )
+                    png = image_to_png_bytes(image)
+                    prompt = extraction_prompt_for_page(
+                        page_index, page_count, self._prompt
+                    )
+                    raw = self._client.read_page(
+                        prompt,
+                        png,
+                        should_cancel=self._should_cancel,
+                    )
+                    raw_parts.append(raw)
+                    parsed = parse_model_object(raw)
+                    if parsed is None:
+                        page_maps.append(
+                            {f"(raw response page {page_index + 1})": raw}
+                        )
+                    else:
+                        page_maps.append(parsed)
+
+                fields = merge_extracted_fields(page_maps)
+                if not fields and page_maps:
+                    fields = dict(page_maps[0])
                 for field in self._index_fields:
                     if field.name not in fields:
                         hit = value_for_field(fields, field.name)
                         if hit:
                             fields[field.name] = hit
+                json_path = write_extraction_json(path, fields)
+                raw_text = "\n\n".join(raw_parts)
                 self.file_completed.emit(
                     row,
-                    FileUploadResult(path=path, raw_text=raw, fields=fields),
+                    FileUploadResult(
+                        path=path,
+                        raw_text=raw_text,
+                        fields=fields,
+                        json_path=json_path,
+                    ),
                 )
             except Exception as exc:
                 logger.exception("Upload failed for %s", path)
