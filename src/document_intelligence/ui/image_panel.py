@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QGraphicsView,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -18,7 +19,7 @@ from PyQt6.QtWidgets import (
 
 from ..services.image_loader import (
     document_page_count,
-    load_first_page_image,
+    load_document_page,
     pil_to_qimage,
     placeholder_image,
 )
@@ -52,30 +53,55 @@ class ImagePanel(QWidget):
         nav.addStretch()
         nav.addWidget(self._page_label)
 
+        self._page_progress = QProgressBar()
+        self._page_progress.setRange(0, 1)
+        self._page_progress.setValue(0)
+        self._page_progress.setTextVisible(True)
+        self._page_progress.setFormat("Page %v of %m")
+        self._page_progress.setVisible(False)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._view, stretch=1)
         layout.addLayout(nav)
+        layout.addWidget(self._page_progress)
 
         self._btn_zoom_in.clicked.connect(self._zoom_in)
         self._btn_zoom_out.clicked.connect(self._zoom_out)
         self._btn_fit.clicked.connect(self._fit_view)
+
+    def set_page_progress(self, page_index: int, page_count: int) -> None:
+        if page_count <= 0:
+            self._page_progress.setVisible(False)
+            return
+        self._page_progress.setVisible(True)
+        self._page_progress.setMaximum(page_count)
+        self._page_progress.setValue(min(page_index + 1, page_count))
+
+    def clear_page_progress(self) -> None:
+        self._page_progress.setVisible(False)
+        self._page_progress.setValue(0)
 
     def show_path(self, path: Path | None) -> None:
         if path is None:
             self._set_image(placeholder_image("No file selected"))
             self._page_label.setText("Page —")
             return
+        self.show_page(path, 0)
+
+    def show_page(self, path: Path, page_index: int) -> None:
+        self._page_count = document_page_count(path)
+        self._page_index = max(0, min(page_index, max(0, self._page_count - 1)))
         try:
-            image = load_first_page_image(path)
-        except OSError:
+            image = load_document_page(path, self._page_index)
+        except (OSError, IndexError):
             image = placeholder_image(f"Could not load\n{path.name}")
         if image is None:
             image = placeholder_image(f"Not found\n{path.name}")
         self._set_image(image)
-        self._page_count = document_page_count(path)
-        self._page_index = 0
-        self._page_label.setText(f"Page {self._page_index + 1} of {self._page_count}")
+        self._page_label.setText(
+            f"Page {self._page_index + 1} of {self._page_count}"
+        )
         self._fit_view()
 
     def _set_image(self, image: Image.Image) -> None:

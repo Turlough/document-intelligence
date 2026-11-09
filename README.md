@@ -35,6 +35,6 @@ Under that, a vertical table showing key-value pairs for the index fields.
 
 On re-opening the app, the previous configuration and file list are restored from the user's APPDATA.
 
-*File -> Upload*: Submits each file to RunPod (one vision call per page for PDF/multipage TIFF), merges extracted fields into one result, updates *index_fields*, and saves `{basename}.json` next to each source file.
+*File -> Upload*: One vision call per page; live preview and progress bars; index columns use merged fields; `{basename}.json` beside each source with `{"pages": [...]}`; extracted fields table lists values by page.
 
 

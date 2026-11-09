@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QProgressBar,
     QSplitter,
     QStatusBar,
     QTableWidget,
@@ -50,6 +51,8 @@ class MainWindow(QMainWindow):
         self._project: ProjectConfig | None = None
         self._image_paths: list[Path] = []
         self._row_fields: dict[int, dict[str, str]] = {}
+        self._row_page_fields: dict[int, list[dict[str, str]]] = {}
+        self._upload_active_row: int | None = None
         self._worker: UploadWorker | None = None
 
         self._file_table = QTableWidget()
@@ -58,14 +61,12 @@ class MainWindow(QMainWindow):
         self._file_table.itemSelectionChanged.connect(self._on_row_selected)
 
         self._image_panel = ImagePanel()
-        self._fields_table = QTableWidget(0, 2)
-        self._fields_table.setHorizontalHeaderLabels(["Field", "Value"])
-        self._fields_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents
-        )
-        self._fields_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
+        self._fields_table = QTableWidget(0, 3)
+        self._fields_table.setHorizontalHeaderLabels(["Page", "Field", "Value"])
+        header = self._fields_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._fields_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         fields_header = QLabel("Extracted fields")
@@ -81,8 +82,19 @@ class MainWindow(QMainWindow):
         right_split.setStretchFactor(0, 3)
         right_split.setStretchFactor(1, 1)
 
+        self._file_progress = QProgressBar()
+        self._file_progress.setTextVisible(True)
+        self._file_progress.setFormat("File %v of %m")
+        self._file_progress.setVisible(False)
+
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.addWidget(self._file_table)
+        left_layout.addWidget(self._file_progress)
+
         root_split = QSplitter(Qt.Orientation.Horizontal)
-        root_split.addWidget(self._file_table)
+        root_split.addWidget(left_panel)
         root_split.addWidget(right_split)
         root_split.setStretchFactor(0, 2)
         root_split.setStretchFactor(1, 3)
@@ -164,6 +176,7 @@ class MainWindow(QMainWindow):
             return
         self._image_paths = [Path(p) for p in paths]
         self._row_fields.clear()
+        self._row_page_fields.clear()
         self._settings.setValue("image_paths", [str(p) for p in self._image_paths])
         self._rebuild_file_table()
         if self._image_paths:
@@ -199,11 +212,20 @@ class MainWindow(QMainWindow):
         self._show_fields_for_row(row)
 
     def _show_fields_for_row(self, row: int) -> None:
-        fields = self._row_fields.get(row, {})
-        self._fields_table.setRowCount(len(fields))
-        for i, (key, value) in enumerate(sorted(fields.items())):
-            self._fields_table.setItem(i, 0, QTableWidgetItem(key))
-            self._fields_table.setItem(i, 1, QTableWidgetItem(value))
+        page_fields = self._row_page_fields.get(row)
+        rows: list[tuple[int, str, str]] = []
+        if page_fields:
+            for page_no, fields in enumerate(page_fields, start=1):
+                for key, value in sorted(fields.items()):
+                    rows.append((page_no, key, value))
+        elif row in self._row_fields:
+            for key, value in sorted(self._row_fields[row].items()):
+                rows.append((1, key, value))
+        self._fields_table.setRowCount(len(rows))
+        for i, (page_no, key, value) in enumerate(rows):
+            self._fields_table.setItem(i, 0, QTableWidgetItem(str(page_no)))
+            self._fields_table.setItem(i, 1, QTableWidgetItem(key))
+            self._fields_table.setItem(i, 2, QTableWidgetItem(value))
 
     def _start_upload(self) -> None:
         if not self._image_paths:
@@ -222,25 +244,65 @@ class MainWindow(QMainWindow):
 
         index_fields = self._project.index_fields if self._project else []
         self._worker = UploadWorker(self._image_paths, index_fields, self._runpod)
-        self._worker.file_started.connect(self._on_upload_started)
+        self._worker.file_started.connect(self._on_upload_file_started)
+        self._worker.page_started.connect(self._on_upload_page_started)
+        self._worker.page_completed.connect(self._on_upload_page_completed)
         self._worker.file_completed.connect(self._on_upload_completed)
         self._worker.file_failed.connect(self._on_upload_failed)
         self._worker.batch_finished.connect(self._on_upload_finished)
+        total = len(self._image_paths)
+        self._file_progress.setVisible(True)
+        self._file_progress.setMaximum(total)
+        self._file_progress.setValue(0)
+        self._upload_active_row = None
         self._worker.start()
         self._status.showMessage("Uploading…")
 
-    def _on_upload_started(self, row: int) -> None:
-        self._status.showMessage(f"Uploading {self._image_paths[row].name}…")
+    def _on_upload_file_started(self, row: int, page_count: int) -> None:
+        self._upload_active_row = row
+        self._row_page_fields[row] = []
+        path = self._image_paths[row]
+        self._file_table.selectRow(row)
+        self._file_progress.setValue(row)
+        self._image_panel.show_page(path, 0)
+        self._image_panel.set_page_progress(0, page_count)
+        self._show_fields_for_row(row)
+        self._status.showMessage(f"Uploading {path.name}…")
+
+    def _on_upload_page_started(self, row: int, page_index: int, page_count: int) -> None:
+        if self._upload_active_row != row:
+            return
+        path = self._image_paths[row]
+        self._image_panel.show_page(path, page_index)
+        self._image_panel.set_page_progress(page_index, page_count)
+        self._status.showMessage(
+            f"Uploading {path.name} — page {page_index + 1} of {page_count}…"
+        )
+
+    def _on_upload_page_completed(self, row: int, page_index: int, fields: object) -> None:
+        if not isinstance(fields, dict):
+            return
+        pages = self._row_page_fields.setdefault(row, [])
+        if page_index == len(pages):
+            pages.append(fields)
+        elif page_index < len(pages):
+            pages[page_index] = fields
+        else:
+            pages.extend({} for _ in range(page_index - len(pages)))
+            pages.append(fields)
+        if self._upload_active_row == row:
+            self._show_fields_for_row(row)
 
     def _on_upload_completed(self, row: int, result: object) -> None:
         if not isinstance(result, FileUploadResult):
             return
         self._row_fields[row] = result.fields
+        self._row_page_fields[row] = result.page_fields
+        self._file_progress.setValue(row + 1)
         for col, field in enumerate(self._project.index_fields if self._project else [], start=1):
             value = value_for_field(result.fields, field.name)
             self._file_table.setItem(row, col, QTableWidgetItem(value))
-        rows = self._file_table.selectionModel().selectedRows()
-        if rows and rows[0].row() == row:
+        if self._upload_active_row == row:
             self._show_fields_for_row(row)
 
     def _on_upload_failed(self, row: int, message: str) -> None:
@@ -249,6 +311,9 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "Upload failed", message)
 
     def _on_upload_finished(self) -> None:
+        self._file_progress.setVisible(False)
+        self._image_panel.clear_page_progress()
+        self._upload_active_row = None
         self._status.showMessage("Upload finished", 5000)
         self._worker = None
 

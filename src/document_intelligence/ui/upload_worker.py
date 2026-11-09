@@ -31,12 +31,15 @@ class FileUploadResult:
     path: Path
     raw_text: str
     fields: dict[str, str]
+    page_fields: list[dict[str, str]]
     json_path: Path | None = None
     error: str | None = None
 
 
 class UploadWorker(QThread):
-    file_started = pyqtSignal(int)
+    file_started = pyqtSignal(int, int)
+    page_started = pyqtSignal(int, int, int)
+    page_completed = pyqtSignal(int, int, object)
     file_completed = pyqtSignal(int, object)
     file_failed = pyqtSignal(int, str)
     batch_finished = pyqtSignal()
@@ -66,14 +69,15 @@ class UploadWorker(QThread):
         for row, path in enumerate(self._paths):
             if self._stop:
                 break
-            self.file_started.emit(row)
+            page_count = document_page_count(path)
+            self.file_started.emit(row, page_count)
             try:
-                page_count = document_page_count(path)
                 page_maps: list[dict[str, str]] = []
                 raw_parts: list[str] = []
                 for page_index in range(page_count):
                     if self._should_cancel():
                         raise InterruptedError("Cancelled")
+                    self.page_started.emit(row, page_index, page_count)
                     image = load_document_page(path, page_index)
                     if image is None:
                         image = placeholder_image(
@@ -91,11 +95,11 @@ class UploadWorker(QThread):
                     raw_parts.append(raw)
                     parsed = parse_model_object(raw)
                     if parsed is None:
-                        page_maps.append(
-                            {f"(raw response page {page_index + 1})": raw}
-                        )
+                        page_fields = {"(raw response)": raw}
                     else:
-                        page_maps.append(parsed)
+                        page_fields = parsed
+                    page_maps.append(page_fields)
+                    self.page_completed.emit(row, page_index, page_fields)
 
                 fields = merge_extracted_fields(page_maps)
                 if not fields and page_maps:
@@ -105,7 +109,7 @@ class UploadWorker(QThread):
                         hit = value_for_field(fields, field.name)
                         if hit:
                             fields[field.name] = hit
-                json_path = write_extraction_json(path, fields)
+                json_path = write_extraction_json(path, page_maps)
                 raw_text = "\n\n".join(raw_parts)
                 self.file_completed.emit(
                     row,
@@ -113,6 +117,7 @@ class UploadWorker(QThread):
                         path=path,
                         raw_text=raw_text,
                         fields=fields,
+                        page_fields=page_maps,
                         json_path=json_path,
                     ),
                 )

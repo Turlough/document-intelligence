@@ -73,10 +73,11 @@ def extraction_json_path(source: Path) -> Path:
     return source.parent / f"{source.stem}.json"
 
 
-def write_extraction_json(source: Path, fields: dict[str, str]) -> Path:
+def write_extraction_json(source: Path, page_fields: list[dict[str, str]]) -> Path:
     out = extraction_json_path(source)
+    payload = {"pages": page_fields}
     out.write_text(
-        json.dumps(fields, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     return out
