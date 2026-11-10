@@ -2,7 +2,7 @@
 
 ## Purpose
 
-PyQt6 desktop shell for Stage 1: load per-project JSON config, pick multipage scans, call RunPod Qwen3-VL once per page (merged per file), three-column UI — filename list, extracted fields table, A4 image viewer with page/zoom controls.
+PyQt6 desktop shell for Stage 1: load per-project JSON config, pick multipage scans, call RunPod Qwen3-VL once per page (merged per file), three-column UI — filename list, fields table, and image viewer (horizontal splitter between fields and viewer); compact **Page** / **Zoom** control groups on the viewer. Main window initial geometry fits the primary screen work area (above the taskbar).
 
 ## Ownership
 

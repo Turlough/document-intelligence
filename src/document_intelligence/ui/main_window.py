@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings, Qt
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -50,7 +51,9 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Document Intelligence")
-        self.resize(1280, 800)
+        self.setMinimumSize(720, 480)
+        self.resize(1100, 700)
+        self._initial_geometry_applied = False
 
         self._settings = QSettings(_SETTINGS_ORG, _SETTINGS_APP)
         self._runpod = RunPodClient()
@@ -96,6 +99,7 @@ class MainWindow(QMainWindow):
         center_layout.addWidget(self._fields_table, stretch=1)
 
         self._image_panel = ImagePanel()
+        self._image_panel.setMinimumWidth(200)
         self._image_panel.page_index_changed.connect(self._on_viewer_page_changed)
 
         self._file_progress = QProgressBar()
@@ -109,14 +113,19 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self._file_list)
         left_layout.addWidget(self._file_progress)
 
+        work_split = QSplitter(Qt.Orientation.Horizontal)
+        work_split.addWidget(center_panel)
+        work_split.addWidget(self._image_panel)
+        work_split.setStretchFactor(0, 1)
+        work_split.setStretchFactor(1, 1)
+        work_split.setSizes([520, 360])
+
         root_split = QSplitter(Qt.Orientation.Horizontal)
         root_split.addWidget(left_panel)
-        root_split.addWidget(center_panel)
-        root_split.addWidget(self._image_panel)
+        root_split.addWidget(work_split)
         root_split.setStretchFactor(0, 0)
-        root_split.setStretchFactor(1, 2)
-        root_split.setStretchFactor(2, 1)
-        root_split.setSizes([220, 480, 420])
+        root_split.setStretchFactor(1, 1)
+        root_split.setSizes([220, 900])
         self.setCentralWidget(root_split)
 
         self._status = QStatusBar()
@@ -125,6 +134,28 @@ class MainWindow(QMainWindow):
 
         self._build_menus()
         self._restore_session()
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        if self._initial_geometry_applied:
+            return
+        self._initial_geometry_applied = True
+        self._fit_to_available_screen()
+
+    def _fit_to_available_screen(self) -> None:
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        margin = 12
+        max_w = max(self.minimumWidth(), available.width() - margin * 2)
+        max_h = max(self.minimumHeight(), available.height() - margin * 2)
+        width = min(self.width(), max_w)
+        height = min(self.height(), max_h)
+        self.resize(width, height)
+        x = available.x() + max(0, (available.width() - width) // 2)
+        y = available.y() + margin
+        self.move(x, y)
 
     def _build_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
