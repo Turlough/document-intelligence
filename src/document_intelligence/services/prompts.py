@@ -15,5 +15,5 @@ DEFAULT_EXTRACTION_PROMPT = (
     "3) Cheque attached — value Yes if the page contains a bank cheque (MICR line or cheque "
     "layout; not a checkbox or the word cheque alone). Include value_bbox around the cheque "
     "when Yes.\n"
-    "Use exactly these names: Garda Signature, Photograph attached, Cheque attached."
+    "Use exactly these names: 'Is Signed by Garda', 'Photograph visble', 'Cheque visible'."
 )
