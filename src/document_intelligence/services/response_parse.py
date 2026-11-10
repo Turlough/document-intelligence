@@ -7,19 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from ..models.field_extraction import FieldExtraction
+from .prompts import DEFAULT_EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE | re.MULTILINE)
 
-DEFAULT_EXTRACTION_PROMPT = (
-    "Read this document image. Extract every visible labeled form field. "
-    "Reply with JSON only — no markdown. Use this shape:\n"
-    '{"fields": [{"name": "<label text>", "value": "<value text>", '
-    '"label_bbox": [x1, y1, x2, y2], "value_bbox": [x1, y1, x2, y2]}]}\n'
-    "Coordinates are Qwen-style integers from 0 to 999 (relative to image width and height). "
-    "Use null for a missing box when text is inferred but not visible."
-)
+
 
 
 def extraction_prompt_for_page(
