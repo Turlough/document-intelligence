@@ -88,8 +88,12 @@ class MainWindow(QMainWindow):
 
         self._fields_table = QTableWidget(0, 2)
         self._fields_table.setHorizontalHeaderLabels(["Field", "Value"])
+        self._fields_table.setWordWrap(True)
         self._apply_fields_table_resize_modes()
         self._fields_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._fields_table.horizontalHeader().sectionResized.connect(
+            self._resize_fields_table_rows
+        )
         self._fields_table.cellClicked.connect(self._on_fields_table_cell_clicked)
 
         center_panel = QWidget()
@@ -235,10 +239,24 @@ class MainWindow(QMainWindow):
     def _apply_fields_table_resize_modes(self) -> None:
         header = self._fields_table.horizontalHeader()
         header.setStretchLastSection(False)
-        for column in range(self._fields_table.columnCount()):
-            header.setSectionResizeMode(
-                column, QHeaderView.ResizeMode.ResizeToContents
-            )
+        if self._fields_show_all:
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            for column in (1, 2):
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+        else:
+            for column in range(self._fields_table.columnCount()):
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+
+    def _resize_fields_table_rows(self, *_args: object) -> None:
+        self._fields_table.resizeRowsToContents()
+
+    @staticmethod
+    def _wrapped_field_item(text: str) -> QTableWidgetItem:
+        item = QTableWidgetItem(text)
+        item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+        )
+        return item
 
     def _on_fields_scope_changed(self) -> None:
         self._fields_show_all = self._radio_all_fields.isChecked()
@@ -314,13 +332,13 @@ class MainWindow(QMainWindow):
         if self._fields_show_all:
             for i, (page_no, key, value) in enumerate(rows):
                 self._fields_table.setItem(i, 0, QTableWidgetItem(str(page_no)))
-                self._fields_table.setItem(i, 1, QTableWidgetItem(key))
-                self._fields_table.setItem(i, 2, QTableWidgetItem(value))
+                self._fields_table.setItem(i, 1, self._wrapped_field_item(key))
+                self._fields_table.setItem(i, 2, self._wrapped_field_item(value))
         else:
             for i, (_page_no, key, value) in enumerate(rows):
-                self._fields_table.setItem(i, 0, QTableWidgetItem(key))
-                self._fields_table.setItem(i, 1, QTableWidgetItem(value))
-        self._fields_table.resizeColumnsToContents()
+                self._fields_table.setItem(i, 0, self._wrapped_field_item(key))
+                self._fields_table.setItem(i, 1, self._wrapped_field_item(value))
+        self._fields_table.resizeRowsToContents()
 
     def _current_file_row(self) -> int | None:
         row = self._file_list.currentRow()
