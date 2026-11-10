@@ -39,6 +39,23 @@ class FieldExtraction:
         )
 
 
+def vertical_sort_key(fe: FieldExtraction) -> tuple[float, float, str]:
+    """Order fields top-to-bottom, then left-to-right (Qwen 0–999 bbox coords)."""
+    best_top = float("inf")
+    best_left = float("inf")
+    for bbox in (fe.label_bbox, fe.value_bbox):
+        if not bbox or len(bbox) < 4:
+            continue
+        top = min(bbox[1], bbox[3])
+        left = min(bbox[0], bbox[2])
+        if top < best_top or (top == best_top and left < best_left):
+            best_top = float(top)
+            best_left = float(left)
+    if best_top == float("inf"):
+        return (float("inf"), float("inf"), fe.name.casefold())
+    return (best_top, best_left, fe.name.casefold())
+
+
 def _bbox_from_raw(raw: object) -> list[int] | None:
     if raw is None:
         return None

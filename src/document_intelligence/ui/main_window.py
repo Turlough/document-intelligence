@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..models.field_extraction import FieldExtraction
+from ..models.field_extraction import FieldExtraction, vertical_sort_key
 from ..models.project_config import ProjectConfig
 from ..services.config_loader import (
     config_directory,
@@ -267,13 +267,13 @@ class MainWindow(QMainWindow):
         if pages:
             if self._fields_show_all:
                 for page_no, page in enumerate(pages, start=1):
-                    for fe in sorted(page, key=lambda f: f.name.casefold()):
+                    for fe in sorted(page, key=vertical_sort_key):
                         rows.append((page_no, fe.name, fe.value))
             else:
                 page_idx = self._image_panel.page_index()
                 if 0 <= page_idx < len(pages):
                     page = pages[page_idx]
-                    for fe in sorted(page, key=lambda f: f.name.casefold()):
+                    for fe in sorted(page, key=vertical_sort_key):
                         rows.append((page_idx + 1, fe.name, fe.value))
         elif row in self._row_fields:
             for key, value in sorted(self._row_fields[row].items()):

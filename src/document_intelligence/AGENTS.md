@@ -16,7 +16,7 @@ PyQt6 desktop shell for Stage 1: load per-project JSON config, pick multipage sc
 - Project configs: subfolders of `FORM_CONFIG_DIRECTORY`, each containing `BASE_CONFIG_FILENAME` (default `config.json`)
 - Upload prompt requests `fields[]` with `name`, `value`, `label_bbox`, `value_bbox` (Qwen 0–999); saved JSON: `{"pages": [{"fields": [...]}]}` as `{stem}.json`; `load_extraction_json` hydrates the file/field tables when that sidecar exists (load images, session restore, rebuild)
 - PDF/multipage TIFF: one RunPod call per page; merged string values fill left index columns
-- Click a field row in the centre table to draw label (dashed) / value (solid) green boxes without changing zoom; **Current page** vs **All fields** filters the table by viewer page
+- Centre field table: rows ordered top-to-bottom by Qwen label/value bbox (then left-to-right); **Current page** vs **All fields** filters by viewer page; row click draws green label (dashed) / value (solid) boxes without changing zoom
 - During upload: progress bars and live page preview (see prior UX notes)
 - `QSettings` org `Digidoocs`, app `DocumentIntelligence` — keys `last_config_path`, `image_paths`
 - Azure Document Intelligence and per-field Qwen prompts are out of scope until Stage 2
