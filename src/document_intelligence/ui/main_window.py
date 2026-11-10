@@ -310,7 +310,12 @@ class MainWindow(QMainWindow):
             self._image_panel.clear_highlights()
             return
         page_idx, extraction = located
-        self._image_panel.show_page(path, page_idx)
+        on_view = (
+            self._image_panel.document_path() == path
+            and self._image_panel.page_index() == page_idx
+        )
+        if not on_view:
+            self._image_panel.show_page(path, page_idx, refit=False)
         self._image_panel.highlight_bboxes(
             extraction.label_bbox, extraction.value_bbox
         )

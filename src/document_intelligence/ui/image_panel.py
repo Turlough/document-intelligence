@@ -28,7 +28,6 @@ from ..services.image_loader import (
 
 _LABEL_PEN = QPen(QColor(0, 170, 0), 2, Qt.PenStyle.DashLine)
 _VALUE_PEN = QPen(QColor(0, 170, 0), 2, Qt.PenStyle.SolidLine)
-_FIELD_FIT_MARGIN = 0.12
 _A4_HEIGHT_PER_WIDTH = 297.0 / 210.0
 
 
@@ -141,6 +140,9 @@ class ImagePanel(QWidget):
   def page_index(self) -> int:
     return self._page_index
 
+  def document_path(self) -> Path | None:
+    return self._path
+
   def set_page_progress(self, page_index: int, page_count: int) -> None:
     if page_count <= 0:
       self._page_progress.setVisible(False)
@@ -164,13 +166,10 @@ class ImagePanel(QWidget):
     value_bbox: list[int] | None,
   ) -> None:
     self.clear_highlights()
-    fit_rects: list[QRectF] = []
     if label_bbox:
-      fit_rects.append(self._add_highlight_rect(label_bbox, _LABEL_PEN))
+      self._add_highlight_rect(label_bbox, _LABEL_PEN)
     if value_bbox:
-      fit_rects.append(self._add_highlight_rect(value_bbox, _VALUE_PEN))
-    if fit_rects:
-      self._fit_rects_in_view(fit_rects)
+      self._add_highlight_rect(value_bbox, _VALUE_PEN)
 
   def _add_highlight_rect(self, bbox: list[int], pen: QPen) -> QRectF:
     rect = qwen_bbox_to_rectf(bbox, self._image_width, self._image_height)
@@ -182,24 +181,6 @@ class ImagePanel(QWidget):
     self._highlight_items.append(item)
     return rect
 
-  def _fit_rects_in_view(self, rects: list[QRectF]) -> None:
-    if not rects:
-      return
-    region = QRectF(rects[0])
-    for rect in rects[1:]:
-      region = region.united(rect)
-    if region.width() < 1.0 or region.height() < 1.0:
-      return
-    pad_x = max(region.width() * _FIELD_FIT_MARGIN, 8.0)
-    pad_y = max(region.height() * _FIELD_FIT_MARGIN, 8.0)
-    padded = region.adjusted(-pad_x, -pad_y, pad_x, pad_y)
-    bounds = self._pixmap_item.boundingRect()
-    padded = padded.intersected(bounds)
-    if padded.width() < 1.0 or padded.height() < 1.0:
-      padded = region.intersected(bounds)
-    self._view.resetTransform()
-    self._view.fitInView(padded, Qt.AspectRatioMode.KeepAspectRatio)
-
   def show_path(self, path: Path | None) -> None:
     if path is None:
       self._path = None
@@ -208,7 +189,7 @@ class ImagePanel(QWidget):
       return
     self.show_page(path, 0)
 
-  def show_page(self, path: Path, page_index: int) -> None:
+  def show_page(self, path: Path, page_index: int, *, refit: bool = True) -> None:
     prev_index = self._page_index
     self._path = path
     self._page_count = document_page_count(path)
@@ -221,7 +202,8 @@ class ImagePanel(QWidget):
       image = placeholder_image(f"Not found\n{path.name}")
     self._set_image(image)
     self._update_nav_buttons()
-    self._fit_view()
+    if refit:
+      self._fit_view()
     if prev_index != self._page_index:
       self.page_index_changed.emit(self._page_index)
 
